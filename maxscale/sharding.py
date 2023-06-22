@@ -1,6 +1,6 @@
 # Bashar Abduljaleel
 # CNE 370
-# 06.21.2023
+# June 20, 2023
 # Database Sharding: To utilize horizontal sharding and Docker to develop a scalable and effective database solution.
 
 import mysql.connector
