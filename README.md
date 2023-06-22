@@ -18,7 +18,7 @@ pip3 install mysql-connector
 ```
 * Install MariaDB
 ```
-    sudo apt install mariadb-client
+sudo apt install mariadb-client
 ```
 * Update your Ubuntu
 ```
