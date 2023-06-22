@@ -1,9 +1,38 @@
-# MariaDB MaxScale Docker image
+# Real World Project: Database Shard Github
 
-This Docker image runs the latest 2.4 version of MariaDB MaxScale.
+## Objectives:
+* Build an app in docker-compose that will set up a sharded database.
+* Use a Python script to connect, query, and demonstrate the merged database.
+* Provide all necessary files and well-written instructions in a GitHub repository
 
--	[Travis CI:  
-	![build status badge](https://img.shields.io/travis/mariadb-corporation/maxscale-docker/master.svg)](https://travis-ci.org/mariadb-corporation/maxscale-docker/branches)
+## The initial prerequisites are to install:
+* [Docker](https://docs.docker.com/engine/install/ubuntu/)
+* [Docker Compose](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-compose-on-ubuntu-22-04)
+```
+sudo apt install docker-compose
+```
+* Install MySQL Connector
+```
+sudo apt install python3-pip
+pip3 install mysql-connector
+```
+* Install MariaDB
+```
+    sudo apt install mariadb-client
+```
+* Update your Ubuntu
+```
+sudo apt update
+sudo apt upgrade
+```
+
+## Create Maxscale Container
+* Clone the maxscale-docker repository by running the following commands in Ubuntu terminal:
+```
+git clone https://github.com/zohan/maxscale-docker/
+cd maxscale-docker/maxscale
+docker-compose up –d
+```
 
 ## Running
 [The MaxScale docker-compose setup](./docker-compose.yml) contains MaxScale
@@ -14,16 +43,27 @@ following commands in this directory.
 docker-compose build
 docker-compose up -d
 ```
-
-After MaxScale and the servers have started (takes a few minutes), you can find
-the readwritesplit router on port 4006 and the readconnroute on port 4008. The
-user `maxuser` with the password `maxpwd` can be used to test the cluster.
-Assuming the mariadb client is installed on the host machine:
+* Run maxctrl to check the status of container that now changed to primary1 and primary2.
 ```
-$ mysql -umaxuser -pmaxpwd -h 127.0.0.1 -P 4006 test
+$ docker-compose exec maxscale maxctrl list servers
+┌─────────┬──────────┬──────┬─────────────┬─────────────────┬──────────┬─────────────────┐
+│ Server  │ Address  │ Port │ Connections │ State           │ GTID     │ Monitor         │
+├─────────┼──────────┼──────┼─────────────┼─────────────────┼──────────┼─────────────────┤
+│ server1 │ primary1 │ 3306 │ 0           │ Master, Running │ 0-3000-5 │ MariaDB-Monitor │
+├─────────┼──────────┼──────┼─────────────┼─────────────────┼──────────┼─────────────────┤
+│ server2 │ primary2 │ 3306 │ 0           │ Running         │ 0-3001-5 │ MariaDB-Monitor │
+└─────────┴──────────┴──────┴─────────────┴─────────────────┴──────────┴─────────────────┘
+```
+* You can edit the [maxscale.cnf.d/example.cnf](https://github.com/BASHAR7A7/maxscale-docker/blob/master/maxscale/maxscale.cnf.d/example.cnf)
+file and recreate the MaxScale container to change the configuration.
+
+* To connect to mariadb using the username: maxuser, maxpwd as a password and that will be on the port 4000:
+```
+$ mariadb -umaxuser -pmaxpwd -h 127.0.0.1 -P 4000
+
 Welcome to the MariaDB monitor.  Commands end with ; or \g.
-Your MySQL connection id is 5
-Server version: 10.2.12 2.2.9-maxscale mariadb.org binary distribution
+Your MySQL connection id is 4
+Server version: 10.11.3-MariaDB-1:10.11.3+maria~ubuntu-log mariadb.org binary distribution
 
 Copyright (c) 2000, 2018, Oracle, MariaDB Corporation Ab and others.
 
@@ -31,60 +71,53 @@ Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
 
 MySQL [test]>
 ```
-You can edit the [`maxscale.cnf.d/example.cnf`](./maxscale.cnf.d/example.cnf)
-file and recreate the MaxScale container to change the configuration.
+*NOTE* You can try to pull some data there.
 
-To stop the containers, execute the following command. Optionally, use the -v
-flag to also remove the volumes.
-
-To run maxctrl in the container to see the status of the cluster:
+## Running [Python Script](https://github.com/BASHAR7A7/maxscale-docker/blob/master/maxscale/sharding.py)
+* The script is being used to remote access the Maxscale Server.
 ```
-$ docker-compose exec maxscale maxctrl list servers
-┌─────────┬─────────┬──────┬─────────────┬─────────────────┬──────────┐
-│ Server  │ Address │ Port │ Connections │ State           │ GTID     │
-├─────────┼─────────┼──────┼─────────────┼─────────────────┼──────────┤
-│ server1 │ master  │ 3306 │ 0           │ Master, Running │ 0-3000-5 │
-├─────────┼─────────┼──────┼─────────────┼─────────────────┼──────────┤
-│ server2 │ slave1  │ 3306 │ 0           │ Slave, Running  │ 0-3000-5 │
-├─────────┼─────────┼──────┼─────────────┼─────────────────┼──────────┤
-│ server3 │ slave2  │ 3306 │ 0           │ Running         │ 0-3000-5 │
-└─────────┴─────────┴──────┴─────────────┴─────────────────┴──────────┘
-
+import mysql.connector
+db = mysql.connector.connect(host="172.21.0.4", port="4000", user="maxuser", password="maxpwd")
+cursor = db.cursor()
 ```
+### The python script will perform the following queries, and print the output to the console:
 
-The cluster is configured to utilize automatic failover. To illustrate this you can stop the master
-container and watch for maxscale to failover to one of the original slaves and then show it rejoining
-after recovery:
+1. The largest zipcode in zipcodes_one
 ```
-$ docker-compose stop master
-Stopping maxscaledocker_master_1 ... done
-$ docker-compose exec maxscale maxctrl list servers
-┌─────────┬─────────┬──────┬─────────────┬─────────────────┬─────────────┐
-│ Server  │ Address │ Port │ Connections │ State           │ GTID        │
-├─────────┼─────────┼──────┼─────────────┼─────────────────┼─────────────┤
-│ server1 │ master  │ 3306 │ 0           │ Down            │ 0-3000-5    │
-├─────────┼─────────┼──────┼─────────────┼─────────────────┼─────────────┤
-│ server2 │ slave1  │ 3306 │ 0           │ Master, Running │ 0-3001-7127 │
-├─────────┼─────────┼──────┼─────────────┼─────────────────┼─────────────┤
-│ server3 │ slave2  │ 3306 │ 0           │ Slave, Running  │ 0-3001-7127 │
-└─────────┴─────────┴──────┴─────────────┴─────────────────┴─────────────┘
-$ docker-compose start master
-Starting master ... done
-$ docker-compose exec maxscale maxctrl list servers
-┌─────────┬─────────┬──────┬─────────────┬─────────────────┬─────────────┐
-│ Server  │ Address │ Port │ Connections │ State           │ GTID        │
-├─────────┼─────────┼──────┼─────────────┼─────────────────┼─────────────┤
-│ server1 │ master  │ 3306 │ 0           │ Slave, Running  │ 0-3001-7127 │
-├─────────┼─────────┼──────┼─────────────┼─────────────────┼─────────────┤
-│ server2 │ slave1  │ 3306 │ 0           │ Master, Running │ 0-3001-7127 │
-├─────────┼─────────┼──────┼─────────────┼─────────────────┼─────────────┤
-│ server3 │ slave2  │ 3306 │ 0           │ Slave, Running  │ 0-3001-7127 │
-└─────────┴─────────┴──────┴─────────────┴─────────────────┴─────────────┘
-
+print('The largest zipcode in zipcodes_one:')
+cursor = db.cursor()
+cursor.execute("SELECT Zipcode FROM zipcodes_one.zipcodes_one ORDER BY Zipcode DESC LIMIT 1;")
+results = cursor.fetchall()
+for result in results:
+    print(result)
 ```
-
-Once complete, to remove the cluster and maxscale containers:
-
+2. All zipcodes where state=KY (Kentucky). You may return just the zipcode column, or all columns.
+```
+print('All zipcodes where state = KY:')
+cursor.execute("SELECT Zipcode FROM zipcodes_one.zipcodes_one WHERE State = 'KY' UNION SELECT Zipcode FROM zipcodes_two.zipcodes_two WHERE State = 'KY';")
+results = cursor.fetchall()
+for result in results:
+    print(result)
+```
+3. All zipcodes between 40000 and 41000.
+```
+print('All zipcodes between 40000 and 41000:')
+cursor = db.cursor()
+cursor.execute("SELECT Zipcode FROM zipcodes_one.zipcodes_one WHERE zipcode BETWEEN 40000 AND 41000 UNION SELECT Zipcode FROM zipcodes_two.zipcodes_two WHERE zipcode BETWEEN 40000 AND 41000;")
+results = cursor.fetchall()
+for result in results:
+    print(result)
+```
+4. The TotalWages column where state=PA (Pennsylvania).
+```
+print('The TotalWages column where state = PA:')
+cursor = db.cursor()
+cursor.execute("SELECT TotalWages FROM zipcodes_one.zipcodes_one WHERE state = 'PA' UNION ALL SELECT TotalWages FROM zipcodes_two.zipcodes_two WHERE state = 'PA';")
+results = cursor.fetchall()
+for result in results:
+    print(result)
+```
+* Once complete, to remove the cluster and maxscale containers:
 ```
 docker-compose down -v
 ```
